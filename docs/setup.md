@@ -1,0 +1,194 @@
+# One-time setup
+
+> **Partially rewritten.** Section 1 below now describes the Bolt.new import/publish
+> steps this project is designed around, replacing the Cloudflare Pages Git-integration
+> steps inherited from an earlier sibling project's template. Some mechanics (whether
+> it stays in sync with GitHub) are still unverified — see the callout in
+> [deployment.md](deployment.md). Everything else on this page (CMS token, Giscus,
+> contact form, author details) still applies regardless of host.
+
+Everything on this page is done once. Sections degrade gracefully — missing pieces mean
+a notice or a fallback, not a broken build.
+
+The GitHub repository (`AIDigitalSMB/bolt-blog`) is created, public and pushed. It is
+**not** yet hosted anywhere — see below.
+
+| Step | Status |
+| --- | --- |
+| Repository created and pushed | ✅ done |
+| Imported into Bolt.new and published | ❌ not done |
+| Fine-grained PAT for the CMS | ❌ not created |
+| Giscus comments | ❌ not configured |
+| Contact form endpoint | ❌ not set |
+| Author identity in `src/consts.ts` | ❌ still placeholder text |
+
+---
+
+## 1. Bolt.new import and publish ❌
+
+**Not done.** This repo has not been imported into Bolt.new or published — there is no
+real Bolt.new project for it yet. The steps below describe what that manual, one-time
+action looks like (observed on the earlier sibling project this was derived from), so
+whoever does it knows what to expect.
+
+Open the GitHub repo in Bolt.new via the import URL
+`https://bolt.new/~/github.com/AIDigitalSMB/bolt-blog`, which pulls the repo into a
+WebContainer-based editor session. From there, clicking **Publish** inside Bolt's editor
+builds and deploys the project to whatever `<project>.bolt.host` domain Bolt assigns.
+Afterwards, update `astro.config.mjs`'s `site`, `public/admin/config.yml`'s
+`site_url`/`display_url`, and `public/robots.txt`'s `Sitemap:` line off the current
+`aidigitalsmb.bolt.host` placeholder to match.
+
+Whether Bolt keeps a project synced to its GitHub repo (rebuilding automatically on
+every push, the way Cloudflare/Netlify's Git integrations do) or only reflects the state
+of the repo at import time is **unverified** — see
+[deployment.md](deployment.md#how-it-works). If a change pushed to GitHub doesn't show
+up live, the fix is likely reopening the Bolt.new project and clicking Publish again.
+
+Build/output/env settings, if Bolt.new exposes any as project settings rather than
+inferring them, haven't been located yet — see
+[deployment.md](deployment.md#whats-configurable-and-where).
+
+Whether a custom domain can be attached, and how, is unconfirmed; see
+[§7 below](#7-optional-custom-domain).
+
+## 2. Access token for the CMS
+
+The CMS signs in with a GitHub Personal Access Token. There is no OAuth backend, no
+serverless function and no client secret anywhere in this repository.
+
+Two kinds of token work, and which one you can use depends on **who owns the repo**.
+
+### Fine-grained (tighter — use it if you can)
+
+<https://github.com/settings/personal-access-tokens/new>
+
+| Field | Value |
+| --- | --- |
+| Resource owner | `AIDigitalSMB` |
+| Repository access | **Only select repositories → `bolt-blog`** |
+| Repository permissions → **Contents** | **Read and write** |
+| Repository permissions → Metadata | Read-only (added automatically) |
+| Expiration | Set one. 90 days is a reasonable default |
+
+Two defaults catch people out: *Repository access* starts on **Public repositories**,
+which is read-only, and *Contents* starts on **No access** — read-only there passes the
+login check but makes every save fail.
+
+> **The catch.** A fine-grained token can only be scoped to repositories owned by its
+> **resource owner**. Collaborator access does not count: if you are signed in as an
+> account that merely *collaborates* on this repo, it will not appear in the list and no
+> permission setting will help. Sign in as the owner, or use a classic token below.
+
+### Classic (the fallback that always works)
+
+<https://github.com/settings/tokens> → **Generate new token (classic)** → tick
+**`public_repo`** only.
+
+Because this repository is public, `public_repo` is enough — do not grant full `repo`.
+This works from any account with push access, regardless of who owns the repo, which is
+why it is the reliable option when the fine-grained route refuses.
+
+The trade-off is real: `public_repo` grants write access to **every public repository
+you can push to**, not just this one. A fine-grained token scoped to a single repo is
+strictly tighter. Prefer fine-grained when the owner account is available to you.
+
+**Pull requests access is not needed either way** — `publish_mode: simple` in
+`public/admin/config.yml` commits straight to `main`.
+
+Whichever you use, commits are authored by the account that issued the token.
+
+Then open `<project>.bolt.host/admin/` (or `localhost:4321/admin/` locally — see
+[writing.md](writing.md)) once this repo is hosted somewhere, choose
+**"Sign In Using Access Token"** and paste it.
+
+> There is no "Sign In with GitHub" button on the login screen. It starts an OAuth flow
+> that needs a server to hold a client secret, which a static site cannot have, so it
+> hung on "Signing in…" forever. Sveltia offers no config option to disable it, so a
+> small fail-open script in `public/admin/index.html` hides it. See
+> [troubleshooting.md](troubleshooting.md#cms-sign-in-with-github-hangs-on-signing-in).
+
+**Treat the token like a password.** It can read and write everything in this
+repository. Do not paste it anywhere else, do not commit it, and revoke it from the
+same settings page the moment you suspect it has leaked. See [SECURITY.md](../SECURITY.md).
+
+## 3. Giscus comments
+
+Comments are GitHub Discussions rendered by [Giscus](https://giscus.app). Until it is
+configured, post pages show a one-line notice instead of the widget — nothing breaks.
+
+1. **Settings → General → Features → ✅ Discussions**
+2. Open the **Discussions** tab and make sure a category exists. The default expected by
+   `src/consts.ts` is **Announcements**; any category works as long as the names match.
+3. Install the app at <https://github.com/apps/giscus> and grant it access to
+   `AIDigitalSMB/bolt-blog` **only**.
+4. Go to <https://giscus.app>, enter `AIDigitalSMB/bolt-blog`, pick the
+   category, and choose *Discussion title contains page pathname* for the mapping.
+5. Copy the generated `data-repo-id` and `data-category-id` into `src/consts.ts`:
+
+```ts
+export const GISCUS = {
+  repo: 'AIDigitalSMB/bolt-blog',
+  repoId: 'R_kg...',        // ← paste
+  category: 'Announcements',
+  categoryId: 'DIC_kw...',  // ← paste
+  // ...
+} as const;
+```
+
+Because comments are public Discussions, consider whether
+[CODE_OF_CONDUCT.md](../CODE_OF_CONDUCT.md) says what you want it to say.
+
+## 4. Contact form endpoint
+
+Cloudflare Pages serves static files by default, so a working form still needs a
+third-party endpoint — this project does not use Pages Functions (Cloudflare's
+serverless option for Pages, which could handle form submission directly; it just isn't
+what's wired up here). `CONTACT_FORM_ENDPOINT` in `src/consts.ts` is deliberately empty
+— no endpoint was invented for you.
+
+Create a form at <https://formspree.io> (or any equivalent), then:
+
+```ts
+export const CONTACT_FORM_ENDPOINT = 'https://formspree.io/f/xxxxxxxx';
+```
+
+The form markup — including a honeypot field — is already written in
+`src/pages/contact.astro` and appears automatically once the value is set. Until then
+`/contact/` shows the mailto link instead.
+
+## 5. Author identity
+
+All in [`src/consts.ts`](../src/consts.ts). Nothing else hardcodes these:
+
+```ts
+export const SITE_TITLE = 'Field Notes';          // ← yours
+export const SITE_DESCRIPTION = '...';            // ← yours
+export const AUTHOR_NAME = 'Your Name';           // ← yours
+export const AUTHOR_BIO = '...';                  // ← yours
+export const AUTHOR_EMAIL = 'you@example.com';    // ← yours
+export const SOCIAL_LINKS = [ ... ];              // ← yours
+```
+
+Also worth replacing: the About page prose in `src/pages/about.astro`, the three sample
+posts in `src/content/blog/`, and `public/social-card.png` (the default Open Graph
+image, 1200×630).
+
+## 6. Optional: licensing
+
+No licence file is included, because the choice is yours to make and it is a legally
+meaningful one. Without a licence, the content is "all rights reserved" by default.
+
+Blogs commonly split the two: a permissive code licence (MIT) plus a content licence
+(e.g. CC BY 4.0) for the posts. If you want that, say so and it can be added.
+
+## 7. Optional: custom domain
+
+A custom domain needs `site` in `astro.config.mjs`, `site_url`/`display_url` in
+`public/admin/config.yml`, and the `Sitemap:` line in `public/robots.txt` all updated to
+the new domain, plus attaching the domain on the Bolt.new side. Where that setting lives
+in Bolt's UI, and whether it handles certificate/DNS provisioning the way Cloudflare
+does, hasn't been checked yet — look in the Bolt.new project's own settings first.
+
+Because this is already a root-served project, no base path has to change. See
+[architecture.md](architecture.md#base-paths).

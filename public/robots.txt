@@ -1,0 +1,10 @@
+# Served at https://aidigitalsmb.bolt.host/robots.txt (see CLAUDE.md). That domain is a
+# placeholder — this repo has not been imported into Bolt.new or published.
+# Assumes a root-served host; under a sub-path deployment this file would need to
+# move accordingly, or it is ignored.
+
+User-agent: *
+Allow: /
+Disallow: /admin/
+
+Sitemap: https://aidigitalsmb.bolt.host/sitemap-index.xml
